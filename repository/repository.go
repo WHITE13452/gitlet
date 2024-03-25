@@ -677,71 +677,9 @@ func Merge(branchName string)  {
 		}
 	}
 
-	for filePath, currCommitblobID := range CurrCommit.PathToBlobID {
-		mergeCommitBlobID := mergeCommit.PathToBlobID[filePath]
-		splitCommitBlobID := commonAncestor.PathToBlobID[filePath]
-		//如果当前commit和merge commit的blobID相同，那么保持原状
-		if mergeCommitBlobID != nil && bytes.Equal(splitCommitBlobID, mergeCommitBlobID) {
-			continue
-		}
-		if splitCommitBlobID != nil {
-			//如果当前branch中没有修改
-			if bytes.Equal(splitCommitBlobID, currCommitblobID) {
-				//但是merge branch中有已经删除了的文件，那么删除
-				if mergeCommitBlobID == nil {
-					removeStage := readStage(constcoe.RemoveStage)
-					removeStage.Add(blob.GetBlobById(currCommitblobID))
-					removeStage.SaveStage(constcoe.RemoveStage)
-					if utils.FileExists(filePath) {
-						utils.DeleteFile(filePath)
-					}
-				} else { //如果merge branch中有修改，那么直接写入
-					blob := blob.GetBlobById(mergeCommitBlobID)
-					WriteBlobToCWDFile(blob)
-					addStage := readStage(constcoe.AddStage)
-					addStage.Add(blob)
-					addStage.SaveStage(constcoe.AddStage)
-				}
-			} else { //在当前branch中有修改
-				conflictContent := conflictFileContents(currCommitblobID, mergeCommitBlobID)
-				utils.WriteContents(filePath, conflictContent)
-				Add(filePath)
-				fmt.Println("Encountered a merge conflict.")
-			}
-		} else if mergeCommitBlobID != nil && !bytes.Equal(mergeCommitBlobID, currCommitblobID) {
-			conflictContent := conflictFileContents(currCommitblobID, mergeCommitBlobID)
-			utils.WriteContents(filePath, conflictContent)
-			Add(filePath)
-			fmt.Println("Encountered a merge conflict.")
-		}
-	}
-	for filePath, mergeCommitBlobID := range mergeCommit.PathToBlobID {
-		currCommitBlobID := CurrCommit.PathToBlobID[filePath]
-		splitCommitBlobID := commonAncestor.PathToBlobID[filePath]
-		//分离点和当前branch中都不存在，在merge branch中存在
-		if splitCommitBlobID == nil && currCommitBlobID == nil {
-			blob := blob.GetBlobById(mergeCommitBlobID)
-			WriteBlobToCWDFile(blob)
-			addStage := readStage(constcoe.AddStage)
-			addStage.Add(blob)
-			addStage.SaveStage(constcoe.AddStage)
-		}
-	}
-
 }
 
-func conflictFileContents(currCommitBlobID, mergeCommitBlobID []byte) string {
-	currContent := getContentFromBlobID(currCommitBlobID)
-	mergeContent := getContentFromBlobID(mergeCommitBlobID)
 
-	return fmt.Sprintf("<<<<<<< HEAD\n%s=======\n%s>>>>>>>\n", currContent, mergeContent)
-	
-}
-
-func  getContentFromBlobID(blobID []byte) string {
-	blob :=blob.GetBlobById(blobID)
-	return string(blob.Content)
-}
 
 func checkIfMergeWithSelf(branchName string)  {
 	if CurrBranch == branchName {
@@ -782,39 +720,6 @@ func checkIfAncestorIsCurrBranch(ancestor *commits.Commits, mergeBranch string) 
 	}
 }
 
-// func mergeFilesToNewCommit(ancestor, newCommit, mergeCommit *commits.Commits) *commits.Commits {
-// 	ancestorBlobs := ancestor.PathToBlobID
-// 	currBranchBlobs := newCommit.PathToBlobID
-// 	mergeBranchBlobs := mergeCommit.PathToBlobID
-// 	newCommitBlobs := make(map[string][]byte)
-
-// 	for fileName, ancestorBlobID := range ancestorBlobs {
-// 		currBlobID, isCurrBlobExist := currBranchBlobs[fileName]
-// 		mergeBlobID, isMergeBlobExist := mergeBranchBlobs[fileName]
-
-// 		if isCurrBlobExist && isMergeBlobExist {
-// 			if bytes.Equal(ancestorBlobID, mergeBlobID) {
-// 				if !bytes.Equal(currBlobID, mergeBlobID) {
-// 					newCommitBlobs[fileName] = mergeBlobID
-// 				}
-// 			} else if !bytes.Equal(ancestorBlobID, currBlobID) {
-// 				if bytes.Equal(mergeBlobID, currBlobID) {
-// 					newCommitBlobs[fileName] = mergeBlobID
-// 				} else {
-// 					utils.Handle(errors.New("Encountered a merge conflict."))
-// 				}
-// 			}
-// 		} else if isCurrBlobExist {
-// 			if !bytes.Equal(ancestorBlobID, currBlobID) {
-// 				utils.Handle(errors.New("Encountered a merge conflict."))
-// 			}
-// 		} else if isMergeBlobExist {
-// 			newCommitBlobs[fileName] = mergeBlobID
-// 		}
-// 	}
-
-
-// }
 
 
 
@@ -860,32 +765,3 @@ func removeDuplicates(allFiles [][]byte) [][]byte {
 	}
 	return result
 }
-
-
-func checkIfConflict(ancestor, newCommit, mergeCommit *commits.Commits) {
-	allFiles := findAllBlobID(ancestor, newCommit, mergeCommit)
-
-	for _, file := range allFiles {
-		filePath := string(file)
-		newCommitContent := getContentFromCommit(newCommit, filePath)
-		mergeCommitContent := getContentFromCommit(mergeCommit, filePath)
-
-		if newCommitContent != mergeCommitContent {
-			// Handle conflict resolution here
-			// Replace the contents of the conflicted file with the desired resolution
-			// For example:
-			// newCommitContent = "Desired resolution"
-			// Overwrite the file with newCommitContent
-		}
-	}
-}
-
-func getContentFromCommit(commit *commits.Commits, filePath string) string {
-	// Retrieve the content of the file from the commit
-	// Implement the logic to fetch the content from the commit
-	// For example:
-	// content := commit.GetFileContent(filePath)
-	// return content
-	return ""
-}
-
