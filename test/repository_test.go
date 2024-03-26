@@ -6,8 +6,10 @@ import (
 	// "gitlet/utils"
 	// "log"
 
+	"fmt"
+	"gitlet/commits"
 	"gitlet/repository"
-	"log"
+
 	"testing"
 )
 
@@ -31,7 +33,33 @@ func Test_init(t *testing.T) {
 	// repository.CreateBranch("master")
 	//repository.CheckOutByBranchName("master")
 	//repository.RemoveBranch("test")
-	log.Println(repository.ReadCurrCommit())
-	repository.ResetByCommitId("a6aeb76e1e5f")
-	log.Println(repository.ReadCurrCommit())
+	// log.Println(repository.ReadCurrCommit())
+	// repository.ResetByCommitId("a6aeb76e1e5f")
+	// log.Println(repository.ReadCurrCommit())
+
+	// ancestor := &commits.Commits{
+	// 	PathToBlobID: map[string][]byte{
+	// 		"file1.txt": []byte("blob1"),
+	// 		"file2.txt": []byte("blob2"),
+	// 	},
+	// }
+	
+	// newCommit := &commits.Commits{
+	// 	PathToBlobID: map[string][]byte{
+	// 		"file2.txt": []byte("blob2"),
+	// 		"file3.txt": []byte("blob3"),
+	// 	},
+	// }
+	
+	// mergeCommit := &commits.Commits{
+	// 	PathToBlobID: map[string][]byte{
+	// 		"file1.txt": []byte("blob1"),
+	// 		"file3.txt": []byte("blob3"),
+	// 	},
+	// }
+	
+	// result := repository.FindAllBlobID(ancestor, newCommit, mergeCommit)
+	// for _, content := range result {
+	// 	fmt.Println(string(content))
+	// }
 }

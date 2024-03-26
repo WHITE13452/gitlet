@@ -2,6 +2,7 @@ package repository
 
 import (
 	"bytes"
+	"crypto/boring"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -647,8 +648,8 @@ func getByteCommitID(commitID string) []byte {
 	return decodeCommitID
 }
 
-//记得不同的版本的文件名可能是一样的，但是文件内容不同时，add之后blobID就会不同，所以检查不同的blobID即可
-func Merge(branchName string)  {
+// 记得不同的版本的文件名可能是一样的，但是文件内容不同时，add之后blobID就会不同，所以检查不同的blobID即可
+func Merge(branchName string) {
 	CurrBranch = readCurrBranch()
 	//检查缓存区是否非空
 	addStage := readStage(constcoe.AddStage)
@@ -669,19 +670,128 @@ func Merge(branchName string)  {
 	utils.Handle(err)
 	checkIfAncestorIsSameCommAsGivenBranch(commonAncestor, mergeCommit)
 	checkIfAncestorIsCurrBranch(commonAncestor, branchName)
-	
-	workingFiles := utils.GetAllWorkingFile()
-	for _, file := range workingFiles {
-		if CurrCommit.PathToBlobID[file] == nil &&  mergeCommit.PathToBlobID[file] != nil {
-			utils.Handle(errors.New("There is an untracked file in the way; delete it, or add and commit it first."))
-		}
+
+	message := "Merged " + branchName + " into " + CurrBranch + "."
+	parent1 := ReadCommitByBranch(CurrBranch).ID
+	parent2 := ReadCommitByBranch(branchName).ID
+	parents := [][]byte{parent1, parent2}
+	newCommit := commits.CreateCommits(message, CurrCommit.PathToBlobID, parents)
+
+	mergedCommit := mergeFilesToNewCommit(mergeCommit, commonAncestor, newCommit)
+}
+
+func mergeFilesToNewCommit(mergCommit, splitPoint, newCommit *commits.Commits) *commits.Commits {
+	allFileBlobIDs := findAllBlobID(splitPoint, newCommit, mergCommit)
+
+	//modified in other but not HEAD → other.  ---overwrite
+	//not in split nor HEAD but in other → other   ---write
+	//unmodified in HEAD but not present in other → REMOVE   ---delete
+	filesNeedToOverWrite := findOverWriteFiles(splitPoint, newCommit, mergCommit)
+	filesDirecWrite := findDirecWriteFiles(splitPoint, newCommit, mergCommit)
+	deleteFiles := findDeleteFiles(splitPoint, newCommit, mergCommit)
+
+	OverWriteFileFromCommit(filesNeedToOverWrite, mergCommit)
+	WriteFiles(filesDirecWrite, mergCommit)
+
+	for path, _ := range deleteFiles {
+		utils.DeleteFile(path)
 	}
+
+	checkConflict(allFileBlobIDs, splitPoint, newCommit, mergCommit)
 
 }
 
+func checkConflict(allFileBlobIDs [][]byte, splitPoint, newCommit, mergCommit *commits.Commits) {
+	splitPointFiles := splitPoint.PathToBlobID
+	newCommitFiles := newCommit.PathToBlobID
+	mergCommitFiles := mergCommit.PathToBlobID
 
+	conflict := false
+	for _, fileBlobID := range allFileBlobIDs {
+		filePath := blob.GetBlobById(fileBlobID).FilePath
 
-func checkIfMergeWithSelf(branchName string)  {
+		if splitPointBlobID, ok := splitPointFiles[filePath]; ok {
+			if newCommitBlobID, ok := newCommitFiles[filePath]; ok && !bytes.Equal(splitPointBlobID, newCommitBlobID) {
+				handleConfilct(filePath, blob.GetBlobById(newCommitBlobID).Content, blob.GetBlobById(mergCommitFiles[filePath]).Content)
+				conflict = true
+				continue
+			}
+			if mergeCommitBlobID, ok := mergCommitFiles[filePath]; ok && !bytes.Equal(splitPointBlobID, mergeCommitBlobID) {
+				handleConfilct(filePath, blob.GetBlobById(splitPointBlobID).Content, blob.GetBlobById(mergCommitFiles[filePath]).Content)
+				conflict = true
+				continue
+			}
+			
+		}
+
+		if newCommitBlobID, ok := newCommitFiles[filePath]; ok {
+			if _, ok := splitPointFiles[filePath]; !ok {
+				handleConfilct(filePath, nil, blob.GetBlobById(newCommitBlobID).Content)
+				conflict = true
+				continue
+			}
+		}
+	}
+	if conflict {
+		fmt.Println("Encountered a merge conflict.")
+	}
+}
+
+// modified in other but not HEAD → other.  ---overwrite
+func findOverWriteFiles(splitPoint, newCommit, mergCommit *commits.Commits) map[string]bool {
+	splitPointFiles := splitPoint.PathToBlobID
+	newCommitFiles := newCommit.PathToBlobID
+	mergCommitFiles := mergCommit.PathToBlobID
+
+	fileNeedToOverWrite := make(map[string]bool)
+	for path, splitFileBlobID := range splitPointFiles {
+		newCommitFileBlobID, isInNewCommit := newCommitFiles[path]
+		mergeCommitFileBlobID, isInMergCommit := mergCommitFiles[path]
+		if isInMergCommit && isInNewCommit {
+			if bytes.Equal(splitFileBlobID, newCommitFileBlobID) && !bytes.Equal(splitFileBlobID, mergeCommitFileBlobID) {
+				fileNeedToOverWrite[path] = true
+			}
+		}
+	}
+	return fileNeedToOverWrite
+}
+
+// not in split nor HEAD but in other → other   ---write
+func findDirecWriteFiles(splitPoint, newCommit, mergCommit *commits.Commits) map[string]bool {
+	splitPointFiles := splitPoint.PathToBlobID
+	newCommitFiles := newCommit.PathToBlobID
+	mergCommitFiles := mergCommit.PathToBlobID
+
+	fileNeedDirecWrite := make(map[string]bool)
+	for path, _ := range mergCommitFiles {
+		_, isInNewCommit := newCommitFiles[path]
+		_, isInSplitCommit := splitPointFiles[path]
+		if !isInSplitCommit && !isInNewCommit {
+			fileNeedDirecWrite[path] = true
+		}
+	}
+	return fileNeedDirecWrite
+}
+
+// unmodified in HEAD but not present in other → REMOVE   ---delete
+func findDeleteFiles(splitPoint, newCommit, mergCommit *commits.Commits) map[string]bool {
+	splitPointFiles := splitPoint.PathToBlobID
+	newCommitFiles := newCommit.PathToBlobID
+	mergCommitFiles := mergCommit.PathToBlobID
+
+	fileNeedToDelete := make(map[string]bool)
+
+	for path, splitFileBlobID := range splitPointFiles {
+		newCommitFileBlobID, _ := newCommitFiles[path]
+		_, isInMergCommit := mergCommitFiles[path]
+		if bytes.Equal(splitFileBlobID, newCommitFileBlobID) && !isInMergCommit {
+			fileNeedToDelete[path] = true
+		}
+	}
+	return fileNeedToDelete
+}
+
+func checkIfMergeWithSelf(branchName string) {
 	if CurrBranch == branchName {
 		utils.Handle(errors.New("Cannot merge a branch with itself."))
 	}
@@ -705,25 +815,22 @@ func getNextCommit(commit *commits.Commits) *commits.Commits {
 		return readCommitByID(commit.ParentID[0])
 	}
 	return nil
-	
+
 }
 
-func checkIfAncestorIsSameCommAsGivenBranch(ancestor, mergeCommit *commits.Commits)  {
+func checkIfAncestorIsSameCommAsGivenBranch(ancestor, mergeCommit *commits.Commits) {
 	if bytes.Equal(ancestor.ID, mergeCommit.ID) {
 		utils.Handle(errors.New("Given branch is an ancestor of the current branch."))
 	}
 }
-func checkIfAncestorIsCurrBranch(ancestor *commits.Commits, mergeBranch string)  {
+func checkIfAncestorIsCurrBranch(ancestor *commits.Commits, mergeBranch string) {
 	if bytes.Equal(ancestor.ID, CurrCommit.ID) {
 		CheckOutByBranchName(mergeBranch)
 		utils.Handle(errors.New("Current branch fast-forwarded."))
 	}
 }
 
-
-
-
-func WriteFiles(filePath map[string]bool, commit *commits.Commits)  {
+func WriteFiles(filePath map[string]bool, commit *commits.Commits) {
 	if filePath == nil {
 		return
 	}
@@ -752,7 +859,7 @@ func appendBlobIDs(allFiles [][]byte, blobIDs map[string][]byte) [][]byte {
 	return allFiles
 }
 
-//去重
+// 去重
 func removeDuplicates(allFiles [][]byte) [][]byte {
 	uniqueFiles := make(map[string]bool)
 	result := [][]byte{}
