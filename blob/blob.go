@@ -7,7 +7,7 @@ import (
 	"encoding/hex"
 	"gitlet/constcoe"
 	"gitlet/utils"
-	"log"
+
 	"path"
 )
 
@@ -42,8 +42,7 @@ func GetBlobById(id []byte) *Blob {
 	blob := &Blob{}
 	filePath := constcoe.ObjectDir + string(hex.EncodeToString(id))
 	error := utils.ReadStruct(filePath, blob)
-	log.Println("Blob: ", blob)
+	// log.Println("Blob: ", blob)
 	utils.Handle(error)
 	return blob
 }
-
