@@ -9,16 +9,16 @@ import (
 	"runtime"
 )
 
-type commandline struct{}
+type Commandline struct{}
 
-func (cli *commandline) validateArgs(num int) {
+func (cli *Commandline) validateArgs(num int) {
 	if len(os.Args) != num {
 		fmt.Println("args' num no good")
 		runtime.Goexit()
 	}
 }
 
-func (cli *commandline) Run() {
+func (cli *Commandline) Run() {
 
 	initGitCommand := flag.NewFlagSet("init", flag.ExitOnError)
 	addCommand := flag.NewFlagSet("add", flag.ExitOnError)
@@ -48,35 +48,35 @@ func (cli *commandline) Run() {
 
 	switch os.Args[1] {
 	case "init":
-		cli.validateArgs(1)
+		cli.validateArgs(2)
 		err := initGitCommand.Parse(os.Args[2:])
 		utils.Handle(err)
 	case "add":
-		cli.validateArgs(2)
+		cli.validateArgs(4)
 		err := addCommand.Parse(os.Args[2:])
 		utils.Handle(err)
 	case "commit":
-		cli.validateArgs(2)
+		cli.validateArgs(4)
 		err := commitCommand.Parse(os.Args[2:])
 		utils.Handle(err)
 	case "rm":
-		cli.validateArgs(2)
+		cli.validateArgs(4)
 		err := rmCommand.Parse(os.Args[2:])
 		utils.Handle(err)
 	case "log":
-		cli.validateArgs(1)
+		cli.validateArgs(2)
 		err := logCommand.Parse(os.Args[2:])
 		utils.Handle(err)
 	case "global-log":
-		cli.validateArgs(1)
+		cli.validateArgs(2)
 		err := globallogCommand.Parse(os.Args[2:])
 		utils.Handle(err)
 	case "find":
-		cli.validateArgs(2)
+		cli.validateArgs(4)
 		err := findCommand.Parse(os.Args[2:])
 		utils.Handle(err)
 	case "status":
-		cli.validateArgs(1)
+		cli.validateArgs(3)
 		err := statusCommand.Parse(os.Args[2:])
 		utils.Handle(err)
 	case "checkout":
@@ -84,19 +84,19 @@ func (cli *commandline) Run() {
 		err := checkoutCommand.Parse(os.Args[2:])
 		utils.Handle(err)
 	case "branch":
-		cli.validateArgs(2)
+		cli.validateArgs(4)
 		err := branchCommand.Parse(os.Args[2:])
 		utils.Handle(err)
 	case "rm-branch":
-		cli.validateArgs(2)
+		cli.validateArgs(4)
 		err := rmBranchCommand.Parse(os.Args[2:])
 		utils.Handle(err)
 	case "reset":
-		cli.validateArgs(2)
+		cli.validateArgs(4)
 		err := restCommand.Parse(os.Args[2:])
 		utils.Handle(err)
 	case "merge":
-		cli.validateArgs(2)
+		cli.validateArgs(4)
 		err := mergeCommand.Parse(os.Args[2:])
 		utils.Handle(err)
 	default:

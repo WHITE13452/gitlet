@@ -78,7 +78,9 @@ func CheckIfInit() {
 }
 
 func Add(fileName string) {
+	fmt.Println("fileName: ", fileName)
 	filePath, err := utils.GetFileFromCWD(fileName)
+	fmt.Println("filePath: ", filePath)
 	utils.Handle(err)
 	if !utils.FileExists(filePath) {
 		log.Fatal("File does not exist.")
@@ -562,6 +564,7 @@ func ResetByCommitId(commitID string) {
 	changeCommitTo(newCommit)
 
 	currBranch := readCurrBranch()
+	log.Println(currBranch)
 	changeBranchHeadTo(decodeCommitID, currBranch)
 
 }
