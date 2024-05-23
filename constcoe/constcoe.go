@@ -9,7 +9,7 @@ const (
 	AddStageFile    = "./.gitlet/add_stage"
 	RemoveStageFile = "./.gitlet/remove_stage"
 
-	WorkingDir = "./"
+
 	AddStage    = "add"
 	RemoveStage = "remove"
 )

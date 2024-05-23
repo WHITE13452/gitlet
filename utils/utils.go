@@ -186,15 +186,18 @@ func ReadAllBranch() []string {
 }
 
 func GetAllWorkingFile() []string {
-	var files []string
-	err := filepath.Walk(constcoe.WorkingDir, func(path string, info fs.FileInfo, err error) error {
-		Handle(err)
-		if !info.IsDir() {
-			fileName := info.Name()
-			files = append(files, fileName)
-		}
-		return nil
-	})
+	files, err := filepath.Glob("*")
 	Handle(err)
-	return files
+
+	var workingFiles []string
+	for _, file := range files {
+		fileInfo, err := os.Stat(file)
+		Handle(err)
+
+		if !fileInfo.IsDir() {
+			workingFiles = append(workingFiles, file)
+		}
+	}
+
+	return workingFiles
 }

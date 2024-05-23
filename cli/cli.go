@@ -79,7 +79,7 @@ func (cli *Commandline) Run() {
 		repository.FindCommitByMessage(os.Args[2])
 		
 	case "status":
-		cli.validateArgs(3)
+		cli.validateArgs(2)
 		repository.CheckIfInit()
 		repository.Status()
 

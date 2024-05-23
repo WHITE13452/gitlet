@@ -3,11 +3,14 @@ package repository
 import (
 	"bytes"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"gitlet/blob"
+	"gitlet/cache"
 	"gitlet/commits"
 	"gitlet/constcoe"
+	"gitlet/gredis"
 	"gitlet/stage"
 	"gitlet/utils"
 	"io/fs"
@@ -78,9 +81,7 @@ func CheckIfInit() {
 }
 
 func Add(fileName string) {
-	fmt.Println("fileName: ", fileName)
 	filePath, err := utils.GetFileFromCWD(fileName)
-	fmt.Println("filePath: ", filePath)
 	utils.Handle(err)
 	if !utils.FileExists(filePath) {
 		log.Fatal("File does not exist.")
@@ -102,9 +103,25 @@ func storeBlob(blob *blob.Blob) {
 				if addStage.IsFilePathExists(blob.FilePath) {
 					addStage.DeleteByPath(blob.FilePath)
 				}
+
+				//放到redis里
+				cache := cache.BlobCache{
+					ID:           blob.ID,
+					Content:      blob.Content,
+					FileName:     blob.FileName,
+					FilePath:     blob.FilePath,
+					BlobFileName: blob.BlobFileName,
+				}
+				key := cache.GetBlobKey()
+				if gredis.Exists(key) {
+					utils.Handle(errors.New("File has already been added."))
+				}
+				gredis.Set(key, cache, 3600)
+
 				//将该blob添加到缓存区
 				addStage.Add(blob)
 				addStage.SaveStage(constcoe.AddStage)
+				
 			} else {
 				removeStage.DeleteByPath(blob.FilePath)
 				removeStage.SaveStage(constcoe.RemoveStage)
@@ -162,7 +179,7 @@ func ReadCurrCommit() *commits.Commits {
 	currCommitFile := constcoe.ObjectDir + string(hex.EncodeToString(currCommitID)) + ".txt"
 	commit := &commits.Commits{}
 	utils.ReadStruct(currCommitFile, commit)
-	log.Println("currCommit: ", commit)
+	// log.Println("currCommit: ", commit)
 	return commit
 }
 
@@ -176,7 +193,31 @@ func Commit(message string) {
 	CurrCommit = ReadCurrCommit()
 	log.Println("currCommit: ", CurrCommit)
 	//找到缓存区的blob，新建一个commit，parent是currCommit
-	addBlobMap := findBlobMap("add")
+
+	addBlob := []*cache.BlobCache{}
+	cacheBlob, err := gredis.LikeGets(constcoe.CACHE_BLOB)
+	if err != nil {
+		utils.Handle(err)
+	} else {
+		for _, cb := range cacheBlob {
+			tmpBlob := &cache.BlobCache{}
+			json.Unmarshal(cb, tmpBlob)
+			fmt.Println("tmpBlob: ", tmpBlob)
+			addBlob = append(addBlob, tmpBlob)
+		}
+
+	}
+
+	addBlobMap := make(map[string][]byte)
+	if addBlob != nil {
+		for _, aB := range addBlob {
+			fmt.Println("addBlob: ", aB)
+			addBlobMap[aB.FilePath] = aB.ID
+		}
+	}else {
+		addBlobMap = findBlobMap("add")
+	}
+	
 	removeBlobMap := findBlobMap("remove")
 	if addBlobMap == nil && removeBlobMap == nil {
 		utils.Handle(errors.New("No changes added to the commit."))
@@ -211,6 +252,10 @@ func Commit(message string) {
 	removeStage.ClearStage()
 	removeStage.SaveStage(constcoe.RemoveStage)
 
+	err = gredis.LikeDeletes(constcoe.CACHE_BLOB)
+	if err != nil {
+		utils.Handle(err)
+	}
 	saveHeads(newCommit)
 
 }
@@ -355,6 +400,26 @@ func Status() {
 
 	//=== Untracked Files ===
 	fmt.Println("=== Untracked Files ===")
+	printUntrackedFiles()
+}
+
+func printUntrackedFiles() {
+	addStage := readStage(constcoe.AddStage)
+	removeStage := readStage(constcoe.RemoveStage)
+
+	workingFile := utils.GetAllWorkingFile()
+
+	for _, filePath := range workingFile {
+
+		_, isStagedForAdd := addStage.PathToBlobID[filePath]
+		_, isStagedForRemoval := removeStage.PathToBlobID[filePath]
+
+		if !isStagedForAdd && !isStagedForRemoval {
+			fmt.Println(filepath.Base(filePath))
+		} else if isStagedForRemoval {
+			fmt.Println(filepath.Base(filePath))
+		}
+	}
 }
 
 func printBranchesStatus(currBranch string, branchList []string) {
@@ -404,25 +469,29 @@ func printModifiedNotStaged() {
 			//but not staged
 			if !isStagedForAdd {
 				fmt.Println(filepath.Base(filePath), "(modified)")
+				continue
 			}
 		}
 
 		if isStagedForAdd {
 			//Staged for addition
-			if !isChanged {
+			if isChanged {
 				//but with different contents than in the working directory
 				//filesWeNeed = append(filesWeNeed, filePath)
 				fmt.Println(filepath.Base(filePath), "(modified)")
+				continue
 			}
 			if isDeleted {
 				//filesWeNeed = append(filesWeNeed, filePath)
 				fmt.Println(filepath.Base(filePath), "(deleted)")
+				continue
 			}
 		}
 
 		if !isStagedForRemoval && isTracked && isDeleted {
 			//filesWeNeed = append(filesWeNeed, filePath)
 			fmt.Println(filepath.Base(filePath), "(deleted)")
+			continue
 		}
 	}
 

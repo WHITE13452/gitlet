@@ -1,4 +1,2 @@
-<<<<<<< HEAD
 写点东西，现在应该在branch white中a
-我现在回到了master里=======
-写点东西，现在在white中进行操作>>>>>>>
+我现在回到了master里

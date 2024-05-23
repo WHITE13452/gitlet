@@ -6,15 +6,20 @@ import (
 	// "gitlet/utils"
 	// "log"
 
-	
-
+	"gitlet/gredis"
+	"gitlet/repository"
 	"testing"
 )
 
 func Test_init(t *testing.T) {
-	 //repository.Init()
-	//repository.Add("4.txt")
-	// repository.Commit("test commit 4.txt")
+	gredis.Setup()
+	// repository.Init()
+	// repository.Add("1.txt")
+	// repository.Add("2.txt")
+	// repository.Add("3.txt")
+	// repository.Add("4.txt")
+	// repository.Add("5.txt")
+	repository.Commit("test commit.txt")
 	// repository.Remove("3.txt")
 	// stage := &stage.Stage{}
 	// err := utils.ReadStruct("/Users/white/develop/GO_workspace/gitlet/test/.gitlet/remove_stage", stage)
@@ -41,6 +46,7 @@ func Test_init(t *testing.T) {
 	// 		"file2.txt": []byte("blob2"),
 	// 	},
 	// }
+	// fmt.Printf("ancestor: %#v\n", ancestor)
 	
 	// newCommit := &commits.Commits{
 	// 	PathToBlobID: map[string][]byte{
